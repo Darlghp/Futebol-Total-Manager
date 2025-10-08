@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futebol Total - Manager Pro 8.3: Desafio Financeiro</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* Estilo customizado para melhor visualização */
+        body { font-family: 'Inter', sans-serif; }
+        .stat-bar { height: 8px; border-radius: 4px; transition: width 0.3s ease-in-out; }
+        .card-shadow { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .promotion { background-color: #d1fae5; border-left: 4px solid #10b981; } /* Verde para promoção */
+        .relegation { background-color: #fee2e2; border-left: 4px solid #ef4444; } /* Vermelho para rebaixamento */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <div id="app" class="p-4 sm:p-8 max-w-7xl mx-auto">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-indigo-700">Futebol Total Manager Pro 8.3</h1>
+            <p class="text-gray-500 text-lg">
+                Temporada: <span id="season-counter" class="font-bold text-indigo-600">1</span> | 
+                Divisão: <span id="division-name" class="font-bold text-red-500">Série D</span>
+            </p>
+        </header>
+
+        <!-- Painel de Status e Ações -->
+        <div class="bg-white p-6 rounded-xl card-shadow mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Seu Time: <span class="text-indigo-600" id="team-name"></span></h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+                <!-- Status Financeiro -->
+                <div class="flex flex-col space-y-2">
+                    <p class="text-2xl font-bold text-green-600" id="team-balance"></p>
+                    <p class="text-lg font-medium text-purple-600" id="team-sponsorship"></p>
+                    <p class="text-lg font-medium text-red-600" id="team-salary"></p>
+                </div>
+                
+                <!-- Força e Tática -->
+                <div class="md:col-span-2 space-y-3">
+                    <p class="text-lg font-medium text-gray-700" id="team-force"></p>
+                    <div>
+                        <label for="tatica-select" class="block text-sm font-medium text-gray-700 mb-1">Escolher Tática:</label>
+                        <select id="tatica-select" onchange="alterarTatica(this.value)" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm">
+                            <option value="Equilibrada">Equilibrada</option>
+                            <option value="Ataque">Ataque (+5% Força)</option>
+                            <option value="Defesa">Defesa (-5% Força)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Ações -->
+                <div class="flex flex-col space-y-3 justify-end">
+                    <button id="btn-train" onclick="treinar()" class="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition duration-150 transform hover:scale-105 w-full">
+                        Treinar Elenco
+                    </button>
+                    <button id="btn-match" onclick="jogarRodada()" class="px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-150 transform hover:scale-105 w-full">
+                        Jogar Rodada <span id="rodada-counter" class="font-bold">0</span>/18
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Mensagem de Resultado -->
+            <div id="match-result" class="mt-4 p-3 rounded-lg text-center font-semibold hidden"></div>
+        </div>
+
+        <!-- Tabela de Classificação e Mercado -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Tabela de Classificação -->
+            <div class="lg:col-span-1 bg-white p-6 rounded-xl card-shadow overflow-x-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800" id="league-title">Classificação</h2>
+                     <button onclick="mostrarHistorico()" class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-lg hover:bg-indigo-200">
+                        Histórico
+                    </button>
+                </div>
+                <div id="league-table"></div>
+                <div id="league-legend" class="mt-4 text-xs text-gray-500 space-y-1"></div>
+            </div>
+            <!-- Mercado de Transferências -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl card-shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Mercado de Transferências</h2>
+                    <button onclick="gerarNovoMercado()" class="px-3 py-1 bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-300">
+                        Atualizar Mercado
+                    </button>
+                </div>
+                <div id="transfer-market-list" class="space-y-3 max-h-96 overflow-y-auto pr-2"></div>
+            </div>
+        </div>
+
+        <!-- Estádio, Finanças e Notícias -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Estádio e Finanças -->
+            <div class="bg-white p-6 rounded-xl card-shadow">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Estádio e Finanças</h2>
+                <div class="space-y-4">
+                    <div id="stadium-info">
+                        <!-- Info do estádio aqui -->
+                    </div>
+                    <div id="financial-summary">
+                        <h3 class="font-bold text-lg text-gray-700">Resumo da Rodada</h3>
+                        <p class="text-sm text-green-600">Receita de Ingressos: <span id="income-tickets">+$0</span></p>
+                        <p class="text-sm text-gray-600">Receita/Despesa (a cada 6r): <span id="income-finance-cycle">+$0</span></p>
+                    </div>
+                </div>
+            </div>
+            <!-- Notícias e Eventos -->
+            <div class="bg-white p-6 rounded-xl card-shadow">
+                 <h2 class="text-2xl font-bold text-gray-800 mb-4">Notícias do Clube</h2>
+                 <div id="news-feed" class="space-y-3 text-center p-4 bg-gray-50 rounded-lg min-h-[100px] flex items-center justify-center">
+                    <p class="text-gray-500">Nenhum evento importante na última rodada.</p>
+                 </div>
+            </div>
+        </div>
+        
+        <!-- Estatísticas do Elenco -->
+        <div class="bg-white p-6 rounded-xl card-shadow">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Elenco (<span id="elenco-size"></span> jogadores)</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jogador</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hab. / Pot. / Idade</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fadiga/Moral</th>
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="player-stats-body" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Ações Globais -->
+        <div class="mt-8 flex justify-center items-center gap-4">
+            <button onclick="salvarJogo()" class="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150">Salvar Jogo</button>
+            <button onclick="carregarJogo()" class="px-6 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition duration-150">Carregar Jogo</button>
+        </div>
+
+    </div>
+
+    <!-- Modal de Histórico -->
+    <div id="history-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+        <div class="absolute inset-0 modal-backdrop" onclick="fecharHistorico()"></div>
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl z-10 m-4">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Histórico do Clube</h2>
+            <div id="history-content" class="max-h-96 overflow-y-auto">
+                <!-- Conteúdo do histórico será inserido aqui -->
+            </div>
+            <button onclick="fecharHistorico()" class="mt-6 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 w-full">Fechar</button>
+        </div>
+    </div>
+
+
+    <script>
+        // Variáveis globais do jogo
+        let meuTime;
+        let gameManager;
+        let rodadaCount = 0;
+        let temporadaCount = 1;
+        let mercadoJogadores = [];
+        let lastTicketIncome = 0;
+        let lastFinanceCycleIncome = 0;
+
+        // --- CONSTANTES ---
+        const MAX_TITULARES = 11; 
+        const TIMES_A_B = 10;
+        const TIMES_C_D = 20;
+        const RODADAS_POR_TEMPORADA = (TIMES_C_D - 1) * 2; // Ajustado para 38 rodadas nas ligas maiores
+        const RODADAS_PARA_PAGAMENTO = 6;
+        const TOTAL_TIMES = TIMES_A_B * 2 + TIMES_C_D * 2;
+        const PROMOTE_RELEGATE_ALTA = 2; 
+        const PROMOTE_RELEGATE_BAIXA = 4; 
+        const POSICOES = ["Goleiro", "Zagueiro", "Lateral", "Meio-campo", "Atacante"];
+        const NOMES_BASE = ["Lucas", "Rafael", "Gabriel", "Mateus", "Bruno", "César", "Davi", "Éder", "Fábio", "Gustavo", "Igor", "Jonas", "Alexandre", "Vitor", "Pedro", "João"];
+        const NOME_TIMES_IA = [
+            "Associação Desportiva", "União Futebol Clube", "Esporte Clube Metropolitano", "Clube Atlético Imperial", "Atlético Nacional", "Desportivo Mineiro", "Ferroviário Esporte Clube", "Independente FC", "Grêmio União", "Porto Esporte Clube", "Vila Nova Futebol Clube", "Oeste Desportivo", "Clube do Povo", "Águia Negra", "Gigantes do Sul", "Estrela do Norte FC", "Real Cidade", "Três Coroas FC", "Centenário Esporte Clube", "Horizonte FC", "Litoral Desportivo", "Academia Paulista", "Geração Futuro", "Esporte Clube Aliança", "Atlético Primavera", "Sport Club Universitário", "União dos Palmares", "Cruz de Ferro FC", "Guerreiros da Fronteira", "Atlético da Colina", "Real Desportivo", "Tupi FC", "União Atlética", "Rio Claro EC", "Serra Branca", "Ponte Nova FC", "Vale do Aço", "Clube da Ilha", "Pérola Negra FC", "Academia Goiana", "Esporte União", "Clube da Montanha", "Galo da Serra", "Leões do Planalto", "Bragança FC", "Novos Horizontes", "Atlético Leste", "Pérola do Rio", "Tubarões do Mar", "Porto Alegre SC", "Guará Desportivo", "Caiçara FC", "Falcões do Sul", "Esquadrão Verde", "Vanguarda FC", "Rio Branco Esporte", "Gigante do Oeste", "XV de Junho", "Navegantes EC"
+        ];
+        
+        const eventosAleatorios = [
+            {
+                titulo: "Moral em Alta!",
+                desc: "Uma vitória inspiradora aumentou a moral de todo o elenco em +10.",
+                efeito: (time) => time.jogadores.forEach(j => j.moral = Math.min(100, j.moral + 10))
+            },
+            {
+                titulo: "Jovem Promessa Descoberta!",
+                desc: "Um olheiro descobriu um jovem com potencial incrível. Ele se juntou ao time de graça!",
+                efeito: (time) => {
+                    const jovem = gerarJogador(60, 70, 90, 100, 17, 18);
+                    time.jogadores.push(jovem);
+                }
+            },
+            {
+                titulo: "Pequena Crise Financeira",
+                desc: "Despesas inesperadas reduziram o saldo do clube em $5,000.",
+                efeito: (time) => time.saldo -= 5000
+            },
+            {
+                titulo: "Patrocinador Satisfeito",
+                desc: "Um patrocinador local, feliz com os resultados, injetou um bônus de $10,000 no clube!",
+                efeito: (time) => time.saldo += 10000
+            },
+            {
+                titulo: "Fadiga Coletiva",
+                desc: "Uma semana de treinos intensos deixou o elenco mais fadigado (+10 Fadiga para todos).",
+                efeito: (time) => time.jogadores.forEach(j => j.fadiga = Math.min(100, j.fadiga + 10))
+            },
+            { 
+                titulo: "Crise Econômica Afeta o Clube!",
+                desc: "Uma crise global impactou os patrocinadores, resultando em uma perda de 20% do seu saldo atual.",
+                efeito: (time) => time.saldo = Math.floor(time.saldo * 0.8)
+            }
+        ];
+
+        class Jogador {
+            constructor(nome, posicao, habilidade, resistencia, moral, idade, potencial) {
+                this.nome = nome; this.posicao = posicao; this.habilidade = habilidade;
+                this.resistencia = resistencia; this.moral = moral; this.idade = idade; 
+                this.potencial = potencial; this.fadiga = 0; this.quimica = 50;
+                this.lesionado = false; this.dias_recuperacao = 0;
+            }
+            treinar(isTitular) {
+                if (this.lesionado) return;
+                if (this.habilidade < this.potencial) {
+                    const fator = isTitular ? 1.5 : 1.0;
+                    let incremento = Math.floor(Math.random() * 3) + 1; 
+                    if (this.idade >= 30) incremento *= 0.5;
+                    if (this.idade >= 35) incremento *= 0.1;
+                    this.habilidade = Math.min(this.potencial, this.habilidade + Math.floor(incremento * fator));
+                }
+                this.fadiga = Math.min(100, this.fadiga + Math.floor(15 * fator));
+                this.moral = Math.min(100, this.moral + 2);
+                this.quimica = Math.min(100, this.quimica + 3);
+                const chanceLesao = 0.05 + (this.fadiga / 100) * 0.05;
+                if (Math.random() < chanceLesao) {
+                    this.lesionado = true;
+                    this.dias_recuperacao = Math.floor(Math.random() * 5) + 3; 
+                }
+            }
+            envelhecer() {
+                this.idade += 1;
+                if (this.idade > 30) {
+                    const decay = Math.floor(Math.random() * (this.idade - 28)); 
+                    this.habilidade = Math.max(50, this.habilidade - decay);
+                    if (this.idade > 35) this.potencial = Math.max(this.habilidade, this.potencial - 2);
+                }
+            }
+            recuperar(isTitular) {
+                const fatorRecuperacao = isTitular ? 10 : 20; 
+                this.fadiga = Math.max(0, this.fadiga - fatorRecuperacao);
+                this.moral = Math.max(0, this.moral - 2);
+                this.quimica = Math.max(0, this.quimica - 2);
+                if (this.lesionado) {
+                    this.dias_recuperacao -= 1;
+                    if (this.dias_recuperacao <= 0) this.lesionado = false;
+                }
+            }
+        }
+
+        class Time {
+            constructor(nome, saldo, eh_jogador = false, divisao = 'D') {
+                this.nome = nome; this.saldo = saldo; this.jogadores = []; 
+                this.titulares = []; this.tatica = "Equilibrada";
+                this.vitorias = 0; this.empates = 0; this.derrotas = 0;
+                this.pontos = 0; this.gols_pro = 0; this.gols_contra = 0;
+                this.eh_jogador = eh_jogador; this.patrocinio_valor = 0; this.divisao = divisao;
+                this.estadio_nivel = 1; this.estadio_capacidade = 5000; this.historico = [];
+            }
+            getJogador(nome) { return this.jogadores.find(j => j.nome === nome); }
+            contratar(jogador) {
+                const custo = Math.floor(jogador.habilidade * 75 * (1 + jogador.idade / 50));
+                if (this.saldo >= custo) {
+                    this.jogadores.push(jogador); this.saldo -= custo;
+                    if (this.titulares.length < MAX_TITULARES) this.titulares.push(jogador.nome);
+                    return { success: true, custo };
+                }
+                return { success: false, custo };
+            }
+            venderJogador(jogador) {
+                const index = this.jogadores.indexOf(jogador);
+                if (index > -1) {
+                    // MUDANÇA: Reputação da divisão afeta o preço de venda
+                    const reputationMultiplier = { 'A': 1.0, 'B': 0.85, 'C': 0.65, 'D': 0.5 }[this.divisao];
+                    const basePrice = Math.floor(jogador.habilidade * 15 * (1 + jogador.potencial / 100) * (1 - jogador.idade / 50)); 
+                    const precoVenda = Math.floor(basePrice * reputationMultiplier);
+                    
+                    this.saldo += precoVenda; this.jogadores.splice(index, 1);
+                    this.titulares = this.titulares.filter(n => n !== jogador.nome);
+                    return { success: true, preco: precoVenda };
+                }
+                return { success: false };
+            }
+            moverParaTitular(nome) {
+                if (this.titulares.length >= MAX_TITULARES || this.titulares.includes(nome)) return false;
+                this.titulares.push(nome); return true;
+            }
+            moverParaReserva(nome) { this.titulares = this.titulares.filter(n => n !== nome); }
+            treinarElenco() { this.jogadores.forEach(j => j.treinar(this.titulares.includes(j.nome))); }
+            setTatica(novaTatica) { this.tatica = novaTatica; }
+            calcularFolhaSalarial() { 
+                return this.jogadores.reduce((total, j) => total + (j.habilidade * 15), 0);
+            }
+            receberPatrocinioESalarios() {
+                const folha = this.calcularFolhaSalarial();
+                const patrocinio = this.eh_jogador ? this.patrocinio_valor : 1000 + gameManager.divisoes[this.divisao].media_forca_ia * 10; 
+                this.saldo += patrocinio - folha;
+                lastFinanceCycleIncome = patrocinio - folha;
+            }
+            pagarBonusVitoria() {
+                const mediaHab = this.jogadores.reduce((sum, j) => sum + j.habilidade, 0) / this.jogadores.length;
+                const bonus = Math.floor(mediaHab * 20); 
+                this.saldo -= bonus; return bonus;
+            }
+            atualizarPatrocinio(posicaoNaTabela) {
+                // MUDANÇA: Patrocínio base das divisões inferiores drasticamente reduzido
+                let basePatrocinio = { 'A': 40000, 'B': 20000, 'C': 7500, 'D': 2500 }[this.divisao] || 2500;
+                let performanceMultiplier = 1.0; 
+                const promoteCount = this.divisao === 'A' ? 1 : (this.divisao === 'D' ? PROMOTE_RELEGATE_BAIXA : PROMOTE_RELEGATE_ALTA);
+                if (posicaoNaTabela <= promoteCount) performanceMultiplier = 1.25;
+                const mediaHab = this.jogadores.reduce((sum, j) => sum + j.habilidade, 0) / (this.jogadores.length || 1);
+                const prestigioBonus = Math.max(0, (mediaHab - 50) * 20); 
+                const bonusAnual = (temporadaCount - 1) * 2000; 
+                this.patrocinio_valor = Math.floor(basePatrocinio * performanceMultiplier + prestigioBonus + bonusAnual);
+            }
+            curarJogador(nomeJogador) {
+                const jogador = this.getJogador(nomeJogador);
+                const custo = jogador.habilidade * 100;
+                if (jogador && jogador.lesionado && this.saldo >= custo) {
+                    this.saldo -= custo; jogador.lesionado = false; jogador.dias_recuperacao = 0;
+                    return { success: true, custo };
+                }
+                return { success: false, custo };
+            }
+            melhorarEstadio() {
+                const custo = this.estadio_nivel * 75000 * (1 + (this.estadio_nivel / 5));
+                if (this.saldo >= custo) {
+                    this.saldo -= custo; this.estadio_nivel++;
+                    this.estadio_capacidade = 5000 + (this.estadio_nivel - 1) * 2500;
+                    return { success: true, custo };
+                }
+                return { success: false, custo };
+            }
+            calcularForca() {
+                let forca = 0, jogadoresDisponiveis = 0;
+                const jogadoresTitulares = this.titulares.map(nome => this.getJogador(nome)).filter(j => j && !j.lesionado);
+                for (const j of jogadoresTitulares) {
+                    forca += j.habilidade + (j.moral / 2) + (j.quimica / 3) + (j.resistencia / 4) - j.fadiga;
+                    jogadoresDisponiveis++;
+                }
+                if (jogadoresDisponiveis < MAX_TITULARES) forca -= (MAX_TITULARES - jogadoresDisponiveis) * 30;
+                if (jogadoresDisponiveis === 0) return 1;
+                let forcaMedia = forca / MAX_TITULARES;
+                if (this.tatica === "Ataque") forcaMedia *= 1.05;
+                else if (this.tatica === "Defesa") forcaMedia *= 0.95;
+                if (!this.eh_jogador) forcaMedia += (gameManager.divisoes[this.divisao].media_forca_ia - 60) * 0.5;
+                return Math.max(1, forcaMedia);
+            }
+            atualizarRecuperacao() { this.jogadores.forEach(j => j.recuperar(this.titulares.includes(j.nome))); }
+            calcularPontos() { return this.vitorias * 3 + this.empates; }
+        }
+
+        class Divisao {
+            constructor(nome, times, promoteCount, relegatCount, size) {
+                this.nome = nome; this.times = times; this.promoteCount = promoteCount;
+                this.relegatCount = relegatCount; this.size = size; this.media_forca_ia = 60; 
+            }
+            rodada() {
+                this.times.sort(() => Math.random() - 0.5); 
+                const resultados = [];
+                for (let i = 0; i < this.times.length; i += 2) {
+                    if (i + 1 < this.times.length) {
+                        resultados.push(this.simularPartida(this.times[i], this.times[i+1]));
+                    }
+                }
+                for (const t of this.times) {
+                    if (t.jogadores.length > 0) {
+                        t.titulares.map(n => t.getJogador(n)).filter(Boolean).forEach(j => j.fadiga = Math.min(100, j.fadiga + 25));
+                    }
+                    t.atualizarRecuperacao();
+                }
+                return resultados;
+            }
+            simularPartida(time1, time2) {
+                const f1 = time1.calcularForca(), f2 = time2.calcularForca();
+                const gols1 = Math.max(0, Math.floor(f1 / 50 + Math.random() * 3));
+                const gols2 = Math.max(0, Math.floor(f2 / 50 + Math.random() * 3));
+                time1.gols_pro += gols1; time1.gols_contra += gols2;
+                time2.gols_pro += gols2; time2.gols_contra += gols1;
+                let vitoria1 = false, vitoria2 = false;
+                if (gols1 > gols2) { time1.vitorias++; time2.derrotas++; vitoria1 = true; }
+                else if (gols2 > gols1) { time2.vitorias++; time1.derrotas++; vitoria2 = true; }
+                else { time1.empates++; time2.empates++; }
+                time1.pontos = time1.calcularPontos(); time2.pontos = time2.calcularPontos();
+                return { time1: time1.nome, gols1, vitoria_t1: vitoria1, time2: time2.nome, gols2, vitoria_t2: vitoria2 };
+            }
+            getTabelaClassificacao() {
+                return this.times.sort((a, b) => b.pontos - a.pontos || (b.gols_pro - b.gols_contra) - (a.gols_pro - a.gols_contra));
+            }
+        }
+
+        function gerarJogador(habMin, habMax, potMin, potMax, idadeMin, idadeMax) {
+            const nome = NOMES_BASE[Math.floor(Math.random() * NOMES_BASE.length)] + ' ' + (Math.floor(Math.random() * 900) + 100);
+            const posicao = POSICOES[Math.floor(Math.random() * POSICOES.length)];
+            const idade = Math.floor(Math.random() * (idadeMax - idadeMin + 1)) + idadeMin;
+            const potencial = Math.floor(Math.random() * (potMax - potMin + 1)) + potMin;
+            const habilidade = Math.min(Math.floor(Math.random() * (habMax - habMin + 1)) + habMin, potencial);
+            const resistencia = Math.floor(Math.random() * 31) + 60; 
+            const moral = Math.floor(Math.random() * 21) + 60; 
+            return new Jogador(nome, posicao, habilidade, resistencia, moral, idade, potencial);
+        }
+        
+        function gerarNovoMercado() {
+            mercadoJogadores = [];
+            for (let i = 0; i < 8; i++) {
+                mercadoJogadores.push(gerarJogador(65, 95, 75, 100, 20, 30));
+            }
+            atualizarGraficos();
+        }
+
+        function initGame() {
+            // MUDANÇA: Saldo inicial reduzido
+            meuTime = new Time("Galáticos FC", 10000, true, 'D');
+            let nomesIA = [...NOME_TIMES_IA];
+            nomesIA.sort(() => Math.random() - 0.5);
+            const todosOsTimes = [meuTime];
+            for (let i = 0; i < TOTAL_TIMES - 1; i++) {
+                 todosOsTimes.push(new Time(nomesIA[i], 3000));
+            }
+
+            let teamsA = [], teamsB = [], teamsC = [], teamsD = [];
+            for (const t of todosOsTimes) {
+                let currentDiv = 'D'; 
+                if (!t.eh_jogador) {
+                    if (teamsA.length < TIMES_A_B) currentDiv = 'A';
+                    else if (teamsB.length < TIMES_A_B) currentDiv = 'B';
+                    else if (teamsC.length < TIMES_C_D) currentDiv = 'C';
+                    else currentDiv = 'D';
+                    t.divisao = currentDiv;
+                } else {
+                    currentDiv = t.divisao;
+                }
+                
+                if (currentDiv === 'A') teamsA.push(t);
+                else if (currentDiv === 'B') teamsB.push(t);
+                else if (currentDiv === 'C') teamsC.push(t);
+                else teamsD.push(t); 
+
+                const habRanges = { 'A': [75, 95, 85, 100], 'B': [60, 85, 75, 95], 'C': [45, 75, 65, 90], 'D': [30, 60, 50, 80] };
+                const [habMin, habMax, potMin, potMax] = habRanges[currentDiv];
+                
+                const initialPlayers = t.eh_jogador ? 18 : 15;
+                for (let i = 0; i < initialPlayers; i++) {
+                    const initialPlayer = gerarJogador(habMin, habMax, potMin, potMax, 18, 25);
+                    const custo = Math.floor(initialPlayer.habilidade * 10);
+                    if (t.saldo >= custo) {
+                        t.jogadores.push(initialPlayer);
+                        t.saldo -= custo;
+                    }
+                }
+                t.jogadores.sort((a, b) => b.habilidade - a.habilidade);
+                t.titulares = t.jogadores.slice(0, MAX_TITULARES).map(j => j.nome);
+            }
+            
+            gameManager = {
+                meuTime: meuTime,
+                divisoes: {
+                    'A': new Divisao("Série A", teamsA, 0, PROMOTE_RELEGATE_ALTA, TIMES_A_B),
+                    'B': new Divisao("Série B", teamsB, PROMOTE_RELEGATE_ALTA, PROMOTE_RELEGATE_ALTA, TIMES_A_B),
+                    'C': new Divisao("Série C", teamsC, PROMOTE_RELEGATE_ALTA, PROMOTE_RELEGATE_BAIXA, TIMES_C_D),
+                    'D': new Divisao("Série D", teamsD, PROMOTE_RELEGATE_BAIXA, 0, TIMES_C_D)
+                }
+            };
+            
+            gameManager.divisoes['A'].media_forca_ia = 85; gameManager.divisoes['B'].media_forca_ia = 70;
+            gameManager.divisoes['C'].media_forca_ia = 55; gameManager.divisoes['D'].media_forca_ia = 40;
+
+            meuTime.atualizarPatrocinio(TIMES_C_D / 2); 
+            document.getElementById('team-name').textContent = meuTime.nome;
+            gerarNovoMercado();
+            atualizarGraficos();
+        }
+        
+        function treinar() {
+            meuTime.treinarElenco();
+            atualizarGraficos();
+            exibirMensagem("Treinamento concluído. Titulares ganharam mais Habilidade, mas Fadiga aumentou.", "info");
+        }
+
+        function curarJogadorImediatamente(nomeJogador) {
+            const jogador = meuTime.getJogador(nomeJogador);
+            if (!jogador || !jogador.lesionado) return;
+            const resultado = meuTime.curarJogador(nomeJogador);
+            if (resultado.success) {
+                atualizarGraficos();
+                exibirMensagem(`${jogador.nome} curado por $${resultado.custo.toLocaleString('pt-BR')}!`, "success");
+            } else {
+                exibirMensagem(`Saldo insuficiente! Custo: $${resultado.custo.toLocaleString('pt-BR')}.`, "error");
+            }
+        }
+
+        function alterarTatica(novaTatica) {
+            meuTime.setTatica(novaTatica);
+            atualizarGraficos();
+        }
+
+        function contratarJogador(index) {
+            const jogador = mercadoJogadores[index];
+            if (!jogador) return;
+            const resultado = meuTime.contratar(jogador);
+            if (resultado.success) {
+                mercadoJogadores.splice(index, 1); 
+                atualizarGraficos();
+                exibirMensagem(`${jogador.nome} contratado por $${resultado.custo.toLocaleString('pt-BR')}.`, "success");
+            } else {
+                exibirMensagem(`Saldo insuficiente! Custo: $${resultado.custo.toLocaleString('pt-BR')}.`, "error");
+            }
+        }
+        
+        function venderJogador(nomeJogador) {
+            const jogadorParaVender = meuTime.getJogador(nomeJogador);
+            if (!jogadorParaVender) return;
+            const resultado = meuTime.venderJogador(jogadorParaVender);
+            if (resultado.success) {
+                atualizarGraficos();
+                exibirMensagem(`${jogadorParaVender.nome} vendido por $${resultado.preco.toLocaleString('pt-BR')}.`, "warning");
+            }
+        }
+        
+        function toggleTitularidade(nomeJogador, isTitular) {
+            if (isTitular) {
+                meuTime.moverParaReserva(nomeJogador);
+            } else {
+                if (!meuTime.moverParaTitular(nomeJogador)) {
+                    exibirMensagem(`Você já tem ${MAX_TITULARES} titulares.`, "error");
+                }
+            }
+            atualizarGraficos();
+        }
+
+        function upgradeEstadio() {
+            const resultado = meuTime.melhorarEstadio();
+            if (resultado.success) {
+                atualizarGraficos();
+                exibirMensagem(`Estádio melhorado para o Nível ${meuTime.estadio_nivel} por $${resultado.custo.toLocaleString('pt-BR')}!`, "success");
+            } else {
+                exibirMensagem(`Saldo insuficiente para melhorar o estádio! Custo: $${resultado.custo.toLocaleString('pt-BR')}`, "error");
+            }
+        }
+
+        function promoverRebaixar() {
+            const { A: serieA, B: serieB, C: serieC, D: serieD } = gameManager.divisoes;
+            const tabelaA = serieA.getTabelaClassificacao(), tabelaB = serieB.getTabelaClassificacao();
+            const tabelaC = serieC.getTabelaClassificacao(), tabelaD = serieD.getTabelaClassificacao();
+
+            const rebaixadosAtoB = tabelaA.slice(-PROMOTE_RELEGATE_ALTA), promovidosBtoA = tabelaB.slice(0, PROMOTE_RELEGATE_ALTA);
+            const rebaixadosBtoC = tabelaB.slice(-PROMOTE_RELEGATE_ALTA), promovidosCtoB = tabelaC.slice(0, PROMOTE_RELEGATE_ALTA);
+            const rebaixadosCtoD = tabelaC.slice(-PROMOTE_RELEGATE_BAIXA), promovidosDtoC = tabelaD.slice(0, PROMOTE_RELEGATE_BAIXA);
+
+            const novosSerieA = [...tabelaA.slice(0, TIMES_A_B - PROMOTE_RELEGATE_ALTA), ...promovidosBtoA];
+            const novosSerieB = [...tabelaB.slice(PROMOTE_RELEGATE_ALTA, TIMES_A_B - PROMOTE_RELEGATE_ALTA), ...rebaixadosAtoB, ...promovidosCtoB];
+            const novosSerieC = [...tabelaC.slice(PROMOTE_RELEGATE_ALTA, TIMES_C_D - PROMOTE_RELEGATE_BAIXA), ...rebaixadosBtoC, ...promovidosDtoC];
+            const novosSerieD = [...tabelaD.slice(PROMOTE_RELEGATE_BAIXA, TIMES_C_D), ...rebaixadosCtoD];
+
+            novosSerieA.forEach(t => t.divisao = 'A'); serieA.times = novosSerieA;
+            novosSerieB.forEach(t => t.divisao = 'B'); serieB.times = novosSerieB;
+            novosSerieC.forEach(t => t.divisao = 'C'); serieC.times = novosSerieC;
+            novosSerieD.forEach(t => t.divisao = 'D'); serieD.times = novosSerieD;
+            
+            let resultadoFinal = "", divisaoAnterior = meuTime.divisao;
+            if (promovidosBtoA.includes(meuTime)) { resultadoFinal = "PROMOÇÃO! Você subiu para a Série A!"; }
+            else if (rebaixadosAtoB.includes(meuTime)) { resultadoFinal = "REBAIXAMENTO! Você caiu para a Série B."; }
+            else if (promovidosCtoB.includes(meuTime)) { resultadoFinal = "PROMOÇÃO! Você subiu para a Série B!"; }
+            else if (rebaixadosBtoC.includes(meuTime)) { resultadoFinal = "REBAIXAMENTO! Você caiu para a Série C."; }
+            else if (promovidosDtoC.includes(meuTime)) { resultadoFinal = "PROMOÇÃO! Você subiu para a Série C!"; }
+            else if (rebaixadosCtoD.includes(meuTime)) { resultadoFinal = "REBAIXAMENTO! Você caiu para a Série D."; }
+            else { resultadoFinal = `Você permaneceu na Série ${meuTime.divisao}.`; }
+
+            const tabelaFinalDivisaoAnterior = {A:tabelaA, B:tabelaB, C:tabelaC, D:tabelaD}[divisaoAnterior];
+            const posicaoFinalAnterior = tabelaFinalDivisaoAnterior.findIndex(t => t.eh_jogador) + 1;
+            
+            meuTime.historico.push({ temporada: temporadaCount, divisao: divisaoAnterior, posicao: posicaoFinalAnterior, resultado: resultadoFinal });
+            meuTime.atualizarPatrocinio(posicaoFinalAnterior);
+            return { mensagem: `Posição Final: ${posicaoFinalAnterior}º. ${resultadoFinal}` };
+        }
+
+        function encerrarTemporada() {
+            const rodadasMax = meuTime.divisao === 'A' || meuTime.divisao === 'B' ? (TIMES_A_B - 1) * 2 : (TIMES_C_D - 1) * 2;
+            if (rodadaCount < rodadasMax) return; 
+
+            const resultadosDivisao = promoverRebaixar();
+            let mensagemTemporada = `Fim da Temporada ${temporadaCount}! ${resultadosDivisao.mensagem}`;
+
+            Object.values(gameManager.divisoes).forEach((div, i) => div.media_forca_ia += (5 - i));
+            meuTime.jogadores.forEach(j => j.envelhecer());
+            
+            for (let i = 0; i < 3; i++) {
+                meuTime.jogadores.push(gerarJogador(55, 65, 85, 99, 17, 19));
+            }
+            mensagemTemporada += ` | 3 jovens talentos chegaram ao clube!`;
+
+            rodadaCount = 0;
+            temporadaCount++;
+            
+            Object.values(gameManager.divisoes).forEach(div => {
+                div.times.forEach(t => { t.vitorias = t.empates = t.derrotas = t.pontos = t.gols_pro = t.gols_contra = 0; });
+            });
+            
+            exibirMensagem(mensagemTemporada, "system");
+            atualizarGraficos();
+        }
+
+        function jogarRodada() {
+            const rodadasMax = meuTime.divisao === 'A' || meuTime.divisao === 'B' ? (TIMES_A_B - 1) * 2 : (TIMES_C_D - 1) * 2;
+            if (rodadaCount >= rodadasMax) {
+                encerrarTemporada();
+                return;
+            }
+            rodadaCount++;
+            let resultMessage = '';
+            
+            // MUDANÇA: Receita de ingressos das divisões inferiores drasticamente reduzida
+            const precoIngresso = {'A': 2.0, 'B': 1.5, 'C': 0.75, 'D': 0.40}[meuTime.divisao] || 0.40;
+            lastTicketIncome = Math.floor(meuTime.estadio_capacidade * precoIngresso * (Math.random() * 0.5 + 0.5));
+            meuTime.saldo += lastTicketIncome;
+            resultMessage += ` | Ingressos: +$${lastTicketIncome.toLocaleString('pt-BR')}.`;
+
+            if (meuTime.titulares.length < MAX_TITULARES) resultMessage += ` AVISO: Time jogou com ${meuTime.titulares.length} titulares!`;
+            
+            const divisaoAtual = gameManager.divisoes[meuTime.divisao];
+            const resultados = divisaoAtual.rodada();
+            let meuResultado = resultados.find(r => r.time1 === meuTime.nome || r.time2 === meuTime.nome);
+            let msg, cssClass;
+            
+            if (meuResultado) {
+                const golsM = meuResultado.time1 === meuTime.nome ? meuResultado.gols1 : meuResultado.gols2;
+                const golsA = meuResultado.time1 === meuTime.nome ? meuResultado.gols2 : meuResultado.time1;
+                const adversario = meuResultado.time1 === meuTime.nome ? meuResultado.time2 : meuResultado.time1;
+                msg = `Rodada ${rodadaCount} | ${meuTime.nome} ${golsM} x ${golsA} ${adversario}`;
+                
+                if (golsM > golsA) {
+                    const bonus = meuTime.pagarBonusVitoria();
+                    resultMessage += ` | Bônus Vitória: -$${bonus.toLocaleString('pt-BR')}.`;
+                    cssClass = 'success';
+                } else if (golsM === golsA) {
+                    cssClass = 'warning';
+                } else {
+                    cssClass = 'error';
+                }
+            } else {
+                 msg = `Rodada ${rodadaCount} | Seu time folgou.`;
+                 cssClass = 'info';
+            }
+            
+            lastFinanceCycleIncome = 0;
+            if (rodadaCount % RODADAS_PARA_PAGAMENTO === 0) {
+                meuTime.receberPatrocinioESalarios();
+                resultMessage += ` | Patrocínio e Salários pagos.`;
+            }
+
+            if (Math.random() < 0.25) {
+                const evento = eventosAleatorios[Math.floor(Math.random() * eventosAleatorios.length)];
+                evento.efeito(meuTime);
+                const feed = document.getElementById('news-feed');
+                feed.innerHTML = `<p class="font-bold text-indigo-600">${evento.titulo}</p><p class="text-sm text-gray-600">${evento.desc}</p>`;
+            } else {
+                document.getElementById('news-feed').innerHTML = `<p class="text-gray-500">Nenhum evento importante na última rodada.</p>`;
+            }
+            
+            exibirMensagem(`${msg}${resultMessage}`, cssClass);
+            atualizarGraficos();
+
+            if (rodadaCount === rodadasMax) setTimeout(encerrarTemporada, 500);
+        }
+
+        // --- Funções de UI ---
+
+        function exibirMensagem(msg, tipo) {
+            const div = document.getElementById('match-result');
+            const cores = {
+                'success': 'bg-green-100 text-green-800', 'error': 'bg-red-100 text-red-800',
+                'warning': 'bg-yellow-100 text-yellow-800', 'info': 'bg-blue-100 text-blue-800',
+                'system': 'bg-indigo-500 text-white font-extrabold'
+            };
+            div.textContent = msg;
+            div.className = `mt-4 p-3 rounded-lg text-center font-semibold ${cores[tipo] || cores['info']}`;
+            div.style.display = 'block';
+        }
+
+        function atualizarGraficos() {
+            const rodadasMax = meuTime.divisao === 'A' || meuTime.divisao === 'B' ? (TIMES_A_B - 1) * 2 : (TIMES_C_D - 1) * 2;
+            document.getElementById('season-counter').textContent = temporadaCount;
+            document.getElementById('rodada-counter').textContent = `${rodadaCount}/${rodadasMax}`;
+            
+            const divNameEl = document.getElementById('division-name');
+            divNameEl.textContent = `Série ${meuTime.divisao}`;
+            const divColor = {'A': 'text-green-600', 'B': 'text-yellow-600', 'C': 'text-orange-500', 'D': 'text-red-500'}[meuTime.divisao];
+            divNameEl.className = `font-bold ${divColor}`;
+
+            document.getElementById('team-balance').textContent = `Saldo: $${meuTime.saldo.toLocaleString('pt-BR')}`;
+            document.getElementById('team-sponsorship').textContent = `Patrocínio (ciclo): $${meuTime.patrocinio_valor.toLocaleString('pt-BR')}`;
+            document.getElementById('team-salary').textContent = `Folha Salarial: $${meuTime.calcularFolhaSalarial().toLocaleString('pt-BR')}`;
+            document.getElementById('team-force').textContent = `Força Média (${meuTime.tatica}): ${meuTime.calcularForca().toFixed(1)}`;
+            document.getElementById('elenco-size').textContent = meuTime.jogadores.length;
+            
+            const custoUpgrade = meuTime.estadio_nivel * 75000 * (1 + (meuTime.estadio_nivel / 5));
+            document.getElementById('stadium-info').innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold text-gray-800">Estádio Nível ${meuTime.estadio_nivel}</p>
+                        <p class="text-sm text-gray-500">Capacidade: ${meuTime.estadio_capacidade.toLocaleString('pt-BR')} torcedores</p>
+                    </div>
+                    <button onclick="upgradeEstadio()" class="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded-lg hover:bg-blue-600">
+                        Melhorar ($${Math.floor(custoUpgrade).toLocaleString('pt-BR')})
+                    </button>
+                </div>`;
+            document.getElementById('income-tickets').textContent = `+$${lastTicketIncome.toLocaleString('pt-BR')}`;
+            document.getElementById('income-finance-cycle').textContent = `${lastFinanceCycleIncome >= 0 ? '+' : ''}$${lastFinanceCycleIncome.toLocaleString('pt-BR')}`;
+            
+            const marketList = document.getElementById('transfer-market-list');
+            marketList.innerHTML = mercadoJogadores.length === 0 ? '<p class="text-gray-500 text-center py-4">Mercado vazio.</p>' : '';
+            mercadoJogadores.forEach((j, index) => {
+                const custo = Math.floor(j.habilidade * 75 * (1 + j.idade / 50));
+                const potencialColor = j.potencial > 90 ? 'text-green-700' : j.potencial > 80 ? 'text-yellow-700' : 'text-gray-700';
+                marketList.innerHTML += `
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div>
+                            <p class="font-bold text-gray-900">${j.nome} <span class="text-xs font-normal text-gray-500">(${j.posicao})</span></p>
+                            <p class="text-sm font-semibold text-gray-700">Hab: <span class="text-indigo-600">${j.habilidade}</span> | P: <span class="${potencialColor}">${j.potencial}</span> | I: ${j.idade}</p>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <span class="text-lg font-extrabold text-green-700">$${custo.toLocaleString('pt-BR')}</span>
+                            <button onclick="contratarJogador(${index})" class="px-4 py-2 bg-green-500 text-white text-sm font-semibold rounded-lg hover:bg-green-600 transition">Contratar</button>
+                        </div>
+                    </div>`;
+            });
+
+            const divisaoAtual = gameManager.divisoes[meuTime.divisao];
+            const classificacao = divisaoAtual.getTabelaClassificacao();
+            document.getElementById('league-title').textContent = `Classificação da ${divisaoAtual.nome}`;
+            let tabelaHTML = `<table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-100"><tr>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">#</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Time</th>
+                <th class="px-2 py-2 text-xs font-bold text-gray-900 uppercase">P</th>
+                <th class="px-2 py-2 text-xs font-medium text-gray-600 uppercase hidden sm:table-cell">V/E/D</th>
+                <th class="px-2 py-2 text-xs font-medium text-gray-600 uppercase">SG</th>
+                </tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
+            classificacao.forEach((time, index) => {
+                const pos = index + 1;
+                const isPromo = pos <= divisaoAtual.promoteCount && divisaoAtual.promoteCount > 0;
+                const isReleg = pos > (divisaoAtual.size - divisaoAtual.relegatCount) && divisaoAtual.relegatCount > 0;
+                let rowClasses = time.eh_jogador ? 'bg-indigo-100 font-bold' : '';
+                if (isPromo) rowClasses += ' promotion'; if (isReleg) rowClasses += ' relegation';
+                tabelaHTML += `<tr class="${rowClasses}"><td class="px-3 py-2 text-center font-extrabold">${pos}</td>
+                    <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900">${time.nome}</td>
+                    <td class="px-2 py-2 text-center font-extrabold">${time.pontos}</td>
+                    <td class="px-2 py-2 text-center hidden sm:table-cell">${time.vitorias}/${time.empates}/${time.derrotas}</td>
+                    <td class="px-2 py-2 text-center">${time.gols_pro - time.gols_contra}</td></tr>`;
+            });
+            document.getElementById('league-table').innerHTML = tabelaHTML + '</tbody></table>';
+
+            const promoText = divisaoAtual.promoteCount > 0 ? `Zona de Promoção` : 'Campeão';
+            const relegText = divisaoAtual.relegatCount > 0 ? `Zona de Rebaixamento` : 'Não há rebaixamento';
+            document.getElementById('league-legend').innerHTML = `<p><span class="inline-block w-3 h-3 bg-green-200 rounded-sm mr-1"></span> ${promoText}</p>
+                ${divisaoAtual.relegatCount > 0 ? `<p><span class="inline-block w-3 h-3 bg-red-200 rounded-sm mr-1"></span> ${relegText}</p>`: ''}`;
+
+            const statsBody = document.getElementById('player-stats-body');
+            statsBody.innerHTML = '';
+            meuTime.jogadores.sort((a,b) => meuTime.titulares.includes(b.nome) - meuTime.titulares.includes(a.nome) || b.habilidade - a.habilidade);
+            meuTime.jogadores.forEach(j => {
+                const isTitular = meuTime.titulares.includes(j.nome);
+                const moralColor = j.moral > 70 ? 'bg-green-500' : j.moral > 50 ? 'bg-yellow-500' : 'bg-red-500';
+                const fadigaColor = j.fadiga < 30 ? 'bg-green-500' : j.fadiga < 60 ? 'bg-yellow-500' : 'bg-red-500';
+                const statusText = j.lesionado ? `<span class="text-xs font-semibold inline-flex items-center px-2.5 py-0.5 rounded-full bg-red-100 text-red-800">LESÃO (${j.dias_recuperacao} dias)</span>` : `<span class="text-xs font-semibold inline-flex items-center px-2.5 py-0.5 rounded-full bg-green-100 text-green-800">Pronto</span>`;
+                const healBtn = j.lesionado ? `<button onclick="curarJogadorImediatamente('${j.nome}')" class="px-3 py-1 mt-1 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Curar ($${(j.habilidade*100).toLocaleString('pt-BR')})</button>` : '';
+                const actionBtn = isTitular ? `<button onclick="toggleTitularidade('${j.nome}', true)" class="px-3 py-1 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600">Para Reserva</button>` : `<button onclick="toggleTitularidade('${j.nome}', false)" class="px-3 py-1 bg-indigo-500 text-white text-xs font-semibold rounded-lg hover:bg-indigo-600">Para Titular</button>`;
+                
+                const reputationMultiplier = { 'A': 1.0, 'B': 0.85, 'C': 0.65, 'D': 0.5 }[meuTime.divisao];
+                const baseSellPrice = Math.floor(j.habilidade*15*(1+j.potencial/100)*(1-j.idade/50));
+                const sellPrice = Math.floor(baseSellPrice * reputationMultiplier);
+
+                statsBody.innerHTML += `<tr class="${isTitular ? 'bg-indigo-50 font-medium' : 'hover:bg-gray-50'}">
+                        <td class="px-3 py-2"><p>${j.nome}</p><p class="text-xs text-gray-500">${j.posicao}</p></td>
+                        <td class="px-3 py-2"><p class="text-lg font-bold text-indigo-700">${j.habilidade}</p><p class="text-xs text-gray-600">P: ${j.potencial} | I: ${j.idade}</p></td>
+                        <td class="px-3 py-2">${isTitular ? `<span class="text-sm font-bold text-indigo-600">Titular</span>` : `<span class="text-sm text-gray-500">Reserva</span>`}<div class="mt-1">${statusText}</div>${healBtn}</td>
+                        <td class="px-3 py-2"><p class="text-xs font-semibold">Fadiga:</p><div class="w-full bg-gray-200 rounded-full mb-1"><div class="${fadigaColor} stat-bar" style="width: ${j.fadiga}%;"></div></div><p class="text-xs font-semibold">Moral:</p><div class="w-full bg-gray-200 rounded-full"><div class="${moralColor} stat-bar" style="width: ${j.moral}%;"></div></div></td>
+                        <td class="px-3 py-2 space-y-1">${actionBtn}<button onclick="venderJogador('${j.nome}')" class="px-3 py-1 bg-yellow-500 text-white text-xs font-semibold rounded-lg hover:bg-yellow-600">Vender ($${sellPrice.toLocaleString('pt-BR')})</button></td>
+                    </tr>`;
+            });
+        }
+        
+        // --- Funções de Save/Load e Histórico ---
+        function salvarJogo() {
+            try {
+                const dehydratedState = JSON.stringify({ meuTime, gameManager, rodadaCount, temporadaCount, mercadoJogadores, lastTicketIncome, lastFinanceCycleIncome });
+                localStorage.setItem('futebolManagerSave_v8_3', dehydratedState);
+                exibirMensagem("Jogo salvo com sucesso!", "success");
+            } catch (e) {
+                console.error("Erro ao salvar o jogo:", e);
+                exibirMensagem("Erro ao salvar. O estado do jogo pode ser muito grande.", "error");
+            }
+        }
+
+        function carregarJogo() {
+            const savedState = localStorage.getItem('futebolManagerSave_v8_3');
+            if (!savedState) {
+                exibirMensagem("Nenhum jogo salvo encontrado. (v8.3)", "error");
+                return;
+            }
+            const loadedState = JSON.parse(savedState);
+            
+            const rehydrateJogador = p => Object.assign(new Jogador(), p);
+            const rehydrateTime = t => {
+                const time = Object.assign(new Time(), t);
+                time.jogadores = time.jogadores.map(rehydrateJogador);
+                return time;
+            };
+            const rehydrateDivisao = d => {
+                const div = Object.assign(new Divisao(), d);
+                div.times = div.times.map(rehydrateTime);
+                const myTeamIndex = div.times.findIndex(t => t.nome === loadedState.meuTime.nome);
+                if (myTeamIndex > -1) {
+                    div.times[myTeamIndex] = meuTime;
+                }
+                return div;
+            };
+
+            meuTime = rehydrateTime(loadedState.meuTime);
+            gameManager = {
+                meuTime: meuTime,
+                divisoes: {
+                    A: rehydrateDivisao(loadedState.gameManager.divisoes.A),
+                    B: rehydrateDivisao(loadedState.gameManager.divisoes.B),
+                    C: rehydrateDivisao(loadedState.gameManager.divisoes.C),
+                    D: rehydrateDivisao(loadedState.gameManager.divisoes.D),
+                }
+            };
+            rodadaCount = loadedState.rodadaCount;
+            temporadaCount = loadedState.temporadaCount;
+            mercadoJogadores = loadedState.mercadoJogadores.map(rehydrateJogador);
+            lastTicketIncome = loadedState.lastTicketIncome || 0;
+            lastFinanceCycleIncome = loadedState.lastFinanceCycleIncome || 0;
+
+            gameManager.meuTime = meuTime;
+            const currentDiv = gameManager.divisoes[meuTime.divisao];
+            const myTeamIndex = currentDiv.times.findIndex(t => t.nome === meuTime.nome);
+            if(myTeamIndex !== -1) {
+                currentDiv.times[myTeamIndex] = meuTime;
+            }
+
+            atualizarGraficos();
+            exibirMensagem("Jogo carregado com sucesso!", "success");
+        }
+        
+        function mostrarHistorico() {
+            const content = document.getElementById('history-content');
+            content.innerHTML = '';
+            if (!meuTime.historico || meuTime.historico.length === 0) {
+                content.innerHTML = '<p class="text-gray-500">Nenhuma temporada foi completada ainda.</p>';
+            } else {
+                let historyHTML = '<table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-4 py-2">Temporada</th><th class="px-4 py-2">Divisão</th><th class="px-4 py-2">Posição</th><th class="px-4 py-2">Resultado</th></tr></thead><tbody>';
+                [...meuTime.historico].reverse().forEach(h => {
+                    historyHTML += `<tr class="text-center"><td class="py-2">${h.temporada}</td><td>Série ${h.divisao}</td><td>${h.posicao}º</td><td class="font-semibold">${h.resultado}</td></tr>`;
+                });
+                content.innerHTML = historyHTML + '</tbody></table>';
+            }
+            document.getElementById('history-modal').classList.remove('hidden');
+        }
+
+        function fecharHistorico() {
+            document.getElementById('history-modal').classList.add('hidden');
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
+
+
