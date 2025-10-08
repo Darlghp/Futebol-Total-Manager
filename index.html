@@ -203,7 +203,24 @@
         const POSICOES = ["Goleiro", "Zagueiro", "Lateral", "Meio-campo", "Atacante"];
         const NOMES_BASE = ["Lucas", "Rafael", "Gabriel", "Mateus", "Bruno", "César", "Davi", "Éder", "Fábio", "Gustavo", "Igor", "Jonas", "Alexandre", "Vitor", "Pedro", "João"];
         const NOME_TIMES_IA = [
-            "Associação Desportiva", "União Futebol Clube", "Esporte Clube Metropolitano", "Clube Atlético Imperial", "Atlético Nacional", "Desportivo Mineiro", "Ferroviário Esporte Clube", "Independente FC", "Grêmio União", "Porto Esporte Clube", "Vila Nova Futebol Clube", "Oeste Desportivo", "Clube do Povo", "Águia Negra", "Gigantes do Sul", "Estrela do Norte FC", "Real Cidade", "Três Coroas FC", "Centenário Esporte Clube", "Horizonte FC", "Litoral Desportivo", "Academia Paulista", "Geração Futuro", "Esporte Clube Aliança", "Atlético Primavera", "Sport Club Universitário", "União dos Palmares", "Cruz de Ferro FC", "Guerreiros da Fronteira", "Atlético da Colina", "Real Desportivo", "Tupi FC", "União Atlética", "Rio Claro EC", "Serra Branca", "Ponte Nova FC", "Vale do Aço", "Clube da Ilha", "Pérola Negra FC", "Academia Goiana", "Esporte União", "Clube da Montanha", "Galo da Serra", "Leões do Planalto", "Bragança FC", "Novos Horizontes", "Atlético Leste", "Pérola do Rio", "Tubarões do Mar", "Porto Alegre SC", "Guará Desportivo", "Caiçara FC", "Falcões do Sul", "Esquadrão Verde", "Vanguarda FC", "Rio Branco Esporte", "Gigante do Oeste", "XV de Junho", "Navegantes EC", "América de Cima", "Botafogo da Vila", "Corinthians do Morro", "Cruzeiro do Interior", "Flamengo do Sertão", "Fluminense da Baixada", "Grêmio do Pampa", "Internacional da Fronteira", "Palmeiras da Mata", "Santos da Praia", "São Paulo da Capital", "Vasco da Colina", "Atlético do Cerrado", "Bahia de Todos os Santos", "Ceará Sporting Club", "Fortaleza Esporte Clube", "Goiás Esporte Clube", "Náutico Capibaribe", "Santa Cruz Futebol Clube", "Sport Club do Recife", "Vitória da Conquista", "Alvorada FC", "Bela Vista EC", "Campo Grande AC", "Diamante Negro FC", "Estrela Dalva", "Fênix Club de Regatas", "Guarani de Campinas", "Harmonia FC", "Ituano FC", "Juventus da Mooca", "Laguna EC", "Madureira EC"
+            "Caxias do Sul FC", "Volta Redonda EC", "América de Natal", "Botafogo da Paraíba", "Confiança SE",
+            "Ferroviária de Araraquara", "Ypiranga de Erechim", "Mirassol FC", "Aparecidense GO", "Paysandu SC",
+            "Remo de Belém", "ABC de Natal", "Figueirense FC", "Manaus FC", "São José RS", "Nacional de Patos",
+            "Operário de Várzea Grande", "Pouso Alegre FC", "Athletic Club MG", "Amazonas FC", "Tocantinópolis EC",
+            "Brusque FC", "Ituano FC", "Londrina EC", "Sampaio Corrêa", "Tombense FC", "Juventude de Caxias",
+            "Vila Nova GO", "Novorizontino SP", "Sport Recife", "Guarani de Campinas", "CRB Alagoas",
+            "Atlético Goianiense", "Criciúma EC", "Chapecoense", "Ponte Preta", "Itabaiana SE", "Retrô FC Brasil",
+            "Portuguesa Santista", "Sergipe SE", "Santa Cruz de Natal", "Jacuipense BA", "ASA de Arapiraca",
+            "Campinense PB", "Globo FC", "Moto Club MA", "Castanhal PA", "Rio Branco AC", "Brasiliense FC",
+            "Ceilândia DF", "Paraná Clube", "Oeste FC", "Joinville EC", "Santa Cruz PE", "Treze FC",
+            "Imperatriz MA", "Altos PI", "Floresta EC", "Botafogo de Ribeirão Preto", "São Bernardo FC",
+            "Nova Iguaçu FC", "Real Noroeste ES", "Águia de Marabá", "Princesa do Solimões", "Maringá FC",
+            "Inter de Limeira", "Santo André", "Ferroviário do Cabo", "Central de Caruaru", "Caldense",
+            "URT de Patos de Minas", "Villa Nova MG", "Bangu AC", "Madureira EC", "Portuguesa da Ilha",
+            "Resende FC", "Boavista SC", "Audax Rio", "Marcílio Dias", "Hercílio Luz", "Aimoré RS",
+            "Esportivo de Bento Gonçalves", "Avenida RS", "Novo Hamburgo", "São Luiz de Ijuí", "Anápolis FC",
+            "Iporá GO", "Grêmio Anápolis", "Goianésia", "Real Brasília", "Gama DF", "União Rondonópolis",
+            "União EC", "Dom Bosco MT", "Luverdense", "Mixto EC"
         ];
         
         const eventosAleatorios = [
@@ -662,27 +679,44 @@
             return { vencedor, gols1, gols2 };
         }
 
+        /**
+         * BUG FIX: A função do playoff da Série F foi reescrita para ser mais clara e garantir
+         * que a lógica de "mata-mata" em escada (stepladder) seja executada corretamente,
+         * eliminando possíveis bugs de atribuição de variáveis.
+         */
         function simularPlayoffSerieF(timesDoPlayoff) {
             let log = "<b>Resultados do Playoff da Série F:</b><br>";
-            // Formato Stepladder: 6o vs 5o, vencedor vs 4o, etc.
+            
+            // A lista `timesDoPlayoff` contém os times do 2º ao 6º lugar.
+            // A ordem é: [time_2º, time_3º, time_4º, time_5º, time_6º]
             const [time2, time3, time4, time5, time6] = timesDoPlayoff;
+            let vencedorAtual;
+            let resultado;
 
-            const res1 = simularPartidaSimples(time6, time5);
-            log += `1ª Fase: ${time6.nome} ${res1.gols1} x ${res1.gols2} ${time5.nome} -> ${res1.vencedor.nome} avança.<br>`;
-            const v1 = res1.vencedor;
+            // --- 1ª Fase: 6º lugar vs 5º lugar ---
+            resultado = simularPartidaSimples(time6, time5);
+            vencedorAtual = resultado.vencedor;
+            log += `1ª Fase: ${time6.nome} ${resultado.gols1} x ${resultado.gols2} ${time5.nome} -> <b>${vencedorAtual.nome}</b> avança.<br>`;
+            const vencedorFase1 = vencedorAtual;
 
-            const res2 = simularPartidaSimples(v1, time4);
-            log += `2ª Fase: ${v1.nome} ${res2.gols1} x ${res2.gols2} ${time4.nome} -> ${res2.vencedor.nome} avança.<br>`;
-            const v2 = res2.vencedor;
+            // --- 2ª Fase: Vencedor da 1ª Fase vs 4º lugar ---
+            resultado = simularPartidaSimples(vencedorFase1, time4);
+            vencedorAtual = resultado.vencedor;
+            log += `2ª Fase: ${vencedorFase1.nome} ${resultado.gols1} x ${resultado.gols2} ${time4.nome} -> <b>${vencedorAtual.nome}</b> avança.<br>`;
+            const vencedorFase2 = vencedorAtual;
+
+            // --- Semifinal: Vencedor da 2ª Fase vs 3º lugar ---
+            resultado = simularPartidaSimples(vencedorFase2, time3);
+            vencedorAtual = resultado.vencedor;
+            log += `Semifinal: ${vencedorFase2.nome} ${resultado.gols1} x ${resultado.gols2} ${time3.nome} -> <b>${vencedorAtual.nome}</b> avança.<br>`;
+            const vencedorSemifinal = vencedorAtual;
             
-            const res3 = simularPartidaSimples(v2, time3);
-            log += `Semifinal: ${v2.nome} ${res3.gols1} x ${res3.gols2} ${time3.nome} -> ${res3.vencedor.nome} avança.<br>`;
-            const v3 = res3.vencedor;
+            // --- Final: Vencedor da Semifinal vs 2º lugar ---
+            resultado = simularPartidaSimples(vencedorSemifinal, time2);
+            vencedorAtual = resultado.vencedor;
+            log += `Final: ${vencedorSemifinal.nome} ${resultado.gols1} x ${resultado.gols2} ${time2.nome} -> <b>${vencedorAtual.nome} sobe para a Série E!</b>`;
             
-            const resFinal = simularPartidaSimples(v3, time2);
-            log += `Final: ${v3.nome} ${resFinal.gols1} x ${resFinal.gols2} ${time2.nome} -> <b>${resFinal.vencedor.nome} sobe para a Série E!</b>`;
-            
-            return { vencedor: resFinal.vencedor, log: log };
+            return { vencedor: vencedorAtual, log: log };
         }
 
         function promoverRebaixar() {
