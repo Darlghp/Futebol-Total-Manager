@@ -727,7 +727,7 @@
                 if (this.titulares.length >= MAX_TITULARES || this.titulares.includes(jogadorId)) return false;
                 this.titulares.push(jogadorId); return true;
             }
-            moverParaReserva(jogadorId) { this.titulares = this.titulares.filter(id => id !== jogador.id); }
+            moverParaReserva(jogadorId) { this.titulares = this.titulares.filter(id => id !== jogadorId); }
             treinarElenco(foco) { 
                 const staffBonuses = {
                     centroTreinamentoNivel: this.centro_treinamento_nivel,
@@ -769,9 +769,13 @@
             }
             curarJogador(jogadorId) {
                 const jogador = this.getJogador(jogadorId);
+                if (!jogador) return { success: false, custo: 0 };
+
                 const custo = jogador.habilidade * 100;
-                if (jogador && jogador.lesionado && this.saldo >= custo) {
-                    this.saldo -= custo; jogador.lesionado = false; jogador.dias_recuperacao = 0;
+                if (jogador.lesionado && this.saldo >= custo) {
+                    this.saldo -= custo;
+                    jogador.lesionado = false;
+                    jogador.dias_recuperacao = 0;
                     return { success: true, custo };
                 }
                 return { success: false, custo };
@@ -1473,7 +1477,7 @@
             else if (promovidosDtoC.some(t => t.id === meuTime.id)) { resultadoFinal = "PROMOÇÃO! Você subiu para a Série C!"; }
             else if (rebaixadosCtoD.some(t => t.id === meuTime.id)) { resultadoFinal = "REBAIXAMENTO! Você caiu para a Série D."; }
             else if (promovidosCtoB.some(t => t.id === meuTime.id)) { resultadoFinal = "PROMOÇÃO! Você subiu para a Série B!"; }
-            else if (rebaixadosBtoC.some(t => t.id === meuTime.id)) { resultadoFinal = "REBAIXAMENTO! Você caiu para a Série C."; }
+            else if (rebaixadosBtoC.some(t => t.id === meuTime.id)) { resultadoFinal = "REBAIXamento! Você caiu para a Série C."; }
             else if (promovidosBtoA.some(t => t.id === meuTime.id)) { resultadoFinal = "PROMOÇÃO! Você subiu para a Série A!"; }
             else if (rebaixadosAtoB.some(t => t.id === meuTime.id)) { resultadoFinal = "REBAIXAMENTO! Você caiu para a Série B."; }
             else { resultadoFinal = `Você permaneceu na Série ${divisaoAnterior}.`; }
@@ -1826,10 +1830,12 @@
                     break;
                 case 'praise_player':
                     const jogador = meuTime.getJogador(resposta.playerId);
-                    if (jogador) jogador.moral = Math.min(100, jogador.moral + 20);
-                    meuTime.jogadores.forEach(j => { if(j.id !== resposta.playerId) j.moral = Math.min(100, j.moral + 2); });
-                    pressaoTorcida = Math.max(0, pressaoTorcida - 3 * (1/fatorMarketing));
-                    pendingMatchResult.message = `(Coletiva: Elogiou ${jogador.nome})` + pendingMatchResult.message;
+                    if (jogador) {
+                        jogador.moral = Math.min(100, jogador.moral + 20);
+                        meuTime.jogadores.forEach(j => { if(j.id !== resposta.playerId) j.moral = Math.min(100, j.moral + 2); });
+                        pressaoTorcida = Math.max(0, pressaoTorcida - 3 * (1/fatorMarketing));
+                        pendingMatchResult.message = `(Coletiva: Elogiou ${jogador.nome})` + pendingMatchResult.message;
+                    }
                     break;
                 case 'praise_fans':
                     meuTime.jogadores.forEach(j => j.moral = Math.min(100, j.moral + 3));
