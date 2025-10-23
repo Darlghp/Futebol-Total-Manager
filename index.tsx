@@ -1,5 +1,6 @@
 
 
+
 const Game = {
     // Variáveis globais do jogo
     // Fix: Cast to any to prevent type errors on initialization with null
@@ -164,6 +165,7 @@ const Game = {
         salario;
         contratoAnos;
         individualFocus;
+        happiness;
 
         constructor(nome, posicao, atributos, moral, idade, potencialRange) {
             this.id = crypto.randomUUID();
@@ -179,6 +181,11 @@ const Game = {
             this.salario = 0;
             this.contratoAnos = 0;
             this.individualFocus = null;
+            this.happiness = {
+                gameTime: 'Satisfeito',
+                contract: 'Satisfeito',
+                teamPerformance: 'Satisfeito',
+            };
         }
 
         get habilidade() { // Agora é o OVR (Overall)
@@ -313,6 +320,36 @@ const Game = {
                 if (this.dias_recuperacao <= 0) this.lesionado = false;
             }
         }
+        updateHappiness(team, teamPosition, leagueSize) {
+            // Game Time
+            const sortedSquad = [...team.jogadores].sort((a, b) => b.habilidade - a.habilidade);
+            const top11 = sortedSquad.slice(0, 11).map(p => p.id);
+            const isTitular = team.titulares.includes(this.id);
+            if (top11.includes(this.id) && !isTitular && this.habilidade > 70) {
+                this.happiness.gameTime = 'Insatisfeito';
+                this.moral = Math.max(20, this.moral - 5);
+            } else if (!top11.includes(this.id) && !isTitular) {
+                this.happiness.gameTime = 'Satisfeito';
+            } else if (isTitular) {
+                this.happiness.gameTime = 'Feliz';
+            }
+
+            // Contract
+            if (this.contratoAnos <= 1) {
+                this.happiness.contract = 'Quer renovar';
+                this.moral = Math.max(30, this.moral - 2);
+            } else {
+                this.happiness.contract = 'Satisfeito';
+            }
+
+            // Team Performance
+            if (teamPosition <= leagueSize / 2) {
+                this.happiness.teamPerformance = 'Satisfeito';
+            } else {
+                this.happiness.teamPerformance = 'Insatisfeito';
+                this.moral = Math.max(40, this.moral - 1);
+            }
+        }
         static fromJSON(data) {
             const j = new Game.Jogador(data.nome, data.posicao, data.atributos, data.moral, data.idade, data.potencialRange);
             Object.assign(j, data);
@@ -327,6 +364,7 @@ const Game = {
                 j.contratoAnos = 3;
             }
             j.individualFocus = data.individualFocus || null;
+            j.happiness = data.happiness || { gameTime: 'Satisfeito', contract: 'Satisfeito', teamPerformance: 'Satisfeito' };
             return j;
         }
     },
@@ -438,6 +476,43 @@ const Game = {
                 return { success: true, preco: precoVenda };
             }
             return { success: false };
+        }
+        renovarContrato(jogadorId) {
+            const jogador = this.getJogador(jogadorId);
+            if (!jogador) return { success: false, message: "Jogador não encontrado." };
+
+            const idade = jogador.idade;
+            const habilidade = jogador.habilidade;
+            const potencial = jogador.potencial;
+
+            // Novo salário baseado na habilidade, potencial e idade
+            const novoSalarioBase = 20;
+            const novoSalario = Math.floor(novoSalarioBase + Math.pow(habilidade, 2) / 15 + Math.pow(potencial, 2) / 40);
+
+            // Bônus de assinatura
+            const bonusAssinatura = novoSalario * 10 * (1 + (habilidade - 60) / 100);
+
+            if (this.saldo < bonusAssinatura) {
+                return { success: false, message: `Saldo insuficiente para pagar o bônus de assinatura de $${Math.floor(bonusAssinatura).toLocaleString('pt-BR')}.` };
+            }
+
+            // Duração do contrato baseada na idade
+            let novosAnosContrato = 1;
+            if (idade < 22) novosAnosContrato = 5;
+            else if (idade < 28) novosAnosContrato = 4;
+            else if (idade < 32) novosAnosContrato = 3;
+            else novosAnosContrato = 2;
+
+            this.saldo -= bonusAssinatura;
+            jogador.salario = novoSalario;
+            jogador.contratoAnos = novosAnosContrato;
+            jogador.happiness.contract = 'Satisfeito';
+            jogador.moral = Math.min(100, jogador.moral + 25); // Bonus de moral pela renovação
+
+            return {
+                success: true,
+                message: `${jogador.nome} renovou o contrato por ${novosAnosContrato} anos! Bônus de assinatura: $${Math.floor(bonusAssinatura).toLocaleString('pt-BR')}. Novo salário: $${novoSalario.toLocaleString('pt-BR')}.`
+            };
         }
         moverParaTitular(jogadorId) {
             const jogador = this.getJogador(jogadorId);
@@ -749,7 +824,8 @@ const Game = {
             const cm = new Game.CopaManager([]);
             Object.assign(cm, data);
             // Precisa re-associar os times reais, pois o JSON só tem os IDs.
-            const allTeams = Object.values(Game.gameManager.divisoes).flatMap((d) => d.times);
+            // Fix: Explicitly type `d` as `any` to resolve implicit `unknown` type error.
+            const allTeams = Object.values(Game.gameManager.divisoes).flatMap((d: any) => d.times);
             cm.todosOsTimes = data.todosOsTimes.map(tData => allTeams.find(t => t.id === tData.id));
             cm.timesNaDisputa = data.timesNaDisputa.map(tData => allTeams.find(t => t.id === tData.id));
             if (data.campeao) {
@@ -996,6 +1072,20 @@ const Game = {
         }
     },
 
+    renovarContratoJogador(jogadorId) {
+        const resultado = this.meuTime.renovarContrato(jogadorId);
+        if (resultado.success) {
+            this.exibirMensagem(resultado.message, "success");
+            this.updateSquadView();
+            // Se o modal de jogador estiver aberto, fecha e reabre para atualizar.
+            if (!document.getElementById('player-detail-modal').classList.contains('hidden')) {
+                this.mostrarPlayerModal(jogadorId);
+            }
+        } else {
+            this.exibirMensagem(resultado.message, "error");
+        }
+    },
+
     toggleTitularidade(jogadorId, isTitular) {
         if (isTitular) {
             this.meuTime.moverParaReserva(jogadorId);
@@ -1035,9 +1125,9 @@ const Game = {
             this.meuTime.saldo -= custoReal;
             this.meuTime.investimento_base_nivel = nivel;
             this.atualizarGraficos();
-            this.exibirMensagem(`Investimento na base alterado para ${nomes[nivel]}! Custo da operação: $${custoReal.toLocaleString('pt-BR')}.`, "success");
+            this.exibirMensagem(`Investimento na base alterado para ${nomes[nivel]}! Custo da operação: $${Math.floor(custoReal).toLocaleString('pt-BR')}.`, "success");
         } else {
-            this.exibirMensagem(`Saldo insuficiente! Custo para mudar: $${custoReal.toLocaleString('pt-BR')}`, "error");
+            this.exibirMensagem(`Saldo insuficiente! Custo para mudar: $${Math.floor(custoReal).toLocaleString('pt-BR')}`, "error");
         }
     },
 
@@ -1341,7 +1431,7 @@ const Game = {
             }
             if (bonusPatrocinio > 0) {
                 this.meuTime.saldo += bonusPatrocinio;
-                mensagemTemporada += ` | Bônus de Patrocínio: +$${bonusPatrocinio.toLocaleString('pt-BR')}!`;
+                mensagemTemporada += ` | Bônus de Patrocínio: +$${Math.floor(bonusPatrocinio).toLocaleString('pt-BR')}!`;
             }
         }
         
@@ -1363,7 +1453,7 @@ const Game = {
         if (this.meuTime.derrotas === 0) {
             const bonusInvicto = 50000 * (1 + (6 - ['A', 'B', 'C', 'D', 'E', 'F'].indexOf(this.meuTime.divisao)));
             this.meuTime.saldo += bonusInvicto;
-            mensagemTemporada += ` | Bônus de Temporada Invicta: +$${bonusInvicto.toLocaleString('pt-BR')}!`;
+            mensagemTemporada += ` | Bônus de Temporada Invicta: +$${Math.floor(bonusInvicto).toLocaleString('pt-BR')}!`;
         }
 
         if (resultadosDivisao.logPlayoff) {
@@ -1610,6 +1700,15 @@ const Game = {
             this.pendingMatchResult.message += ` | Patrocínio e Salários (ciclo) pagos.`;
         }
 
+        const divAtual = this.gameManager.divisoes[this.meuTime.divisao];
+        const tabela = divAtual.getTabelaClassificacao();
+        const minhaPosicao = tabela.findIndex(t => t.id === this.meuTime.id) + 1;
+        const tamanhoLiga = divAtual.size;
+
+        this.meuTime.jogadores.forEach(j => {
+            j.updateHappiness(this.meuTime, minhaPosicao, tamanhoLiga);
+        });
+
         const moralPressao = Math.floor(this.pressaoTorcida / 20); // 0-5 penalty
         this.meuTime.jogadores.forEach(j => {
             let modMoral = j.traits.includes('Veterano Experiente') ? moralPressao * 0.5 : moralPressao;
@@ -1782,7 +1881,7 @@ const Game = {
 
         if (contexto.vitoria) {
             const bonus = this.meuTime.pagarBonusVitoria();
-            this.pendingMatchResult.message += ` | Bônus Vitória: -$${bonus.toLocaleString('pt-BR')}.`;
+            this.pendingMatchResult.message += ` | Bônus Vitória: -$${Math.floor(bonus).toLocaleString('pt-BR')}.`;
             if (contexto.jogadorDestaque) {
                 this.pendingMatchResult.message += ` | ${contexto.jogadorDestaque.nome} foi o Jogador da Partida!`;
             }
@@ -1860,7 +1959,7 @@ const Game = {
         const divDarkColor = { 'A': 'dark:text-green-400', 'B': 'dark:text-yellow-400', 'C': 'dark:text-orange-400', 'D': 'dark:text-red-400', 'E': 'dark:text-gray-400', 'F': 'dark:text-gray-500' };
         divNameEl.className = `font-bold ${divColor[this.meuTime.divisao]} ${divDarkColor[this.meuTime.divisao]}`;
 
-        document.getElementById('team-balance').textContent = `Saldo: $${this.meuTime.saldo.toLocaleString('pt-BR')}`;
+        document.getElementById('team-balance').textContent = `Saldo: $${Math.floor(this.meuTime.saldo).toLocaleString('pt-BR')}`;
         
         const deal = this.meuTime.sponsorshipDeal;
         if (deal) {
@@ -2047,7 +2146,7 @@ const Game = {
         pressureText.textContent = pressureDesc;
 
         document.getElementById('income-tickets').textContent = `+$${this.lastTicketIncome.toLocaleString('pt-BR')}`;
-        document.getElementById('income-finance-cycle').textContent = `${this.lastFinanceCycleIncome >= 0 ? '+' : ''}$${this.lastFinanceCycleIncome.toLocaleString('pt-BR')}`;
+        document.getElementById('income-finance-cycle').textContent = `${this.lastFinanceCycleIncome >= 0 ? '+' : ''}$${Math.floor(this.lastFinanceCycleIncome).toLocaleString('pt-BR')}`;
 
         const marketList = document.getElementById('transfer-market-list');
         marketList.innerHTML = this.mercadoJogadores.length === 0 ? '<p class="text-gray-500 dark:text-gray-400 text-center py-4">Mercado vazio.</p>' : '';
@@ -2151,7 +2250,7 @@ const Game = {
             case 'habilidade_asc': players.sort((a, b) => a.habilidade - b.habilidade); break;
             case 'potencial_desc': players.sort((a, b) => b.potencial - a.potencial); break;
             case 'idade_asc': players.sort((a, b) => a.idade - b.idade); break;
-            case 'idade_desc': players.sort((a, b) => b.idade - a.idade); break;
+            case 'idade_desc': players.sort((a, b) => b.idade - b.idade); break;
             case 'posicao_asc': players.sort((a, b) => this.POSICOES.indexOf(a.posicao) - this.POSICOES.indexOf(b.posicao)); break;
             case 'default':
             default:
@@ -2182,7 +2281,24 @@ const Game = {
             const focusIndicator = j.individualFocus ? `<span class="ml-2 text-xs font-semibold inline-flex px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300">${j.individualFocus}</span>` : '';
 
             statsBody.innerHTML += `<tr class="player-row ${isTitular ? 'bg-indigo-50 dark:bg-indigo-900/30 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-700'} ${rowClass}" onclick="window.Game.mostrarPlayerModal('${j.id}')">
-                        <td class="px-3 py-2 text-gray-900 dark:text-gray-200"><p>${j.nome}${focusIndicator}</p><p class="text-xs text-gray-500 dark:text-gray-400">${j.posicao}</p></td>
+                        <td class="px-3 py-2 text-gray-900 dark:text-gray-200">
+                             <div class="flex items-center">
+                                <p>${j.nome}${focusIndicator}</p>
+                                ${(j.happiness.gameTime === 'Insatisfeito' || j.happiness.contract === 'Quer renovar') ?
+                    `<div class="tooltip ml-2">
+                                        <span class="text-red-500">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                            </svg>
+                                        </span>
+                                        <span class="tooltiptext">
+                                            ${j.happiness.gameTime === 'Insatisfeito' ? '• Insatisfeito com o tempo de jogo.<br>' : ''}
+                                            ${j.happiness.contract === 'Quer renovar' ? '• Quer um novo contrato.' : ''}
+                                        </span>
+                                    </div>` : ''}
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">${j.posicao}</p>
+                        </td>
                         <td class="px-3 py-2">
                             <p class="text-lg font-bold text-indigo-700 dark:text-indigo-400">${j.habilidade}</p>
                             <p class="text-xs text-gray-600 dark:text-gray-400">P: ${j.potencialRange[0]}-${j.potencialRange[1]} | I: ${j.idade}</p>
@@ -2193,7 +2309,10 @@ const Game = {
                            <div class="flex flex-wrap gap-1">${traitsHTML}</div>
                            ${healBtn}
                         </td>
-                         <td class="px-3 py-2 text-center ${contractWarning}">${j.contratoAnos > 1 ? `${j.contratoAnos} anos` : `${j.contratoAnos} ano`}</td>
+                         <td class="px-3 py-2 text-center">
+                            <span class="${contractWarning}">${j.contratoAnos > 1 ? `${j.contratoAnos} anos` : `${j.contratoAnos} ano`}</span>
+                            ${j.contratoAnos <= 1 ? `<button onclick="event.stopPropagation(); window.Game.renovarContratoJogador('${j.id}')" class="ml-2 px-2 py-0.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700">Renovar</button>` : ''}
+                         </td>
                         <td class="px-3 py-2"><p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Fadiga:</p><div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full mb-1"><div class="${fadigaColor} stat-bar" style="width: ${j.fadiga}%;"></div></div><p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Moral:</p><div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full"><div class="${moralColor} stat-bar" style="width: ${j.moral}%;"></div></div></td>
                         <td class="px-3 py-2 space-y-1">${actionBtn}<button onclick="event.stopPropagation(); window.Game.venderJogador('${j.id}')" class="px-3 py-1 bg-yellow-500 text-white text-xs font-semibold rounded-lg hover:bg-yellow-600">Vender ($${sellPrice.toLocaleString('pt-BR')})</button></td>
                     </tr>`;
@@ -2615,6 +2734,19 @@ const Game = {
         if (!jogador) return;
 
         const modalContent = document.getElementById('player-modal-content');
+
+        const happinessColor = (status) => {
+            switch (status) {
+                case 'Feliz':
+                case 'Satisfeito':
+                    return 'text-green-600 dark:text-green-400';
+                case 'Insatisfeito':
+                case 'Quer renovar':
+                    return 'text-red-600 dark:text-red-400';
+                default:
+                    return 'text-gray-700 dark:text-gray-300';
+            }
+        };
         
         const renderAttribute = (attr, value) => {
             const potential = jogador.potencial;
@@ -2665,6 +2797,23 @@ const Game = {
                 <button onclick="window.Game.fecharPlayerModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-3xl leading-none">&times;</button>
             </div>
             <div class="mt-4 flex flex-wrap gap-2">${traitsHTML}</div>
+             <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2">Satisfação do Jogador</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Tempo de Jogo</p>
+                        <p class="font-bold ${happinessColor(jogador.happiness.gameTime)}">${jogador.happiness.gameTime}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Contrato</p>
+                        <p class="font-bold ${happinessColor(jogador.happiness.contract)}">${jogador.happiness.contract}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Desempenho do Time</p>
+                        <p class="font-bold ${happinessColor(jogador.happiness.teamPerformance)}">${jogador.happiness.teamPerformance}</p>
+                    </div>
+                </div>
+            </div>
             <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="md:col-span-1 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                     <p class="text-sm text-gray-500 dark:text-gray-400">Overall</p>
